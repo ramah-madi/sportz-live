@@ -24,10 +24,10 @@ export const createMatchSchema = z
     sport: z.string().trim().min(1, "Sport cannot be empty"),
     homeTeam: z.string().trim().min(1, "Home team cannot be empty"),
     awayTeam: z.string().trim().min(1, "Away team cannot be empty"),
-    startTime: z.string().refine((val) => !isNaN(Date.parse(val)), {
+    startTime: z.string().refine(isIsoDate, {
       message: "Invalid ISO date string",
     }),
-    endTime: z.string().refine((val) => !isNaN(Date.parse(val)), {
+    endTime: z.string().refine(isIsoDate, {
       message: "Invalid ISO date string",
     }),
     homeScore: z.coerce.number().int().nonnegative().optional(),
