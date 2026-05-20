@@ -7,6 +7,7 @@ import { db } from "../db/db.js";
 import { matches } from "../db/schema.js";
 import { desc } from "drizzle-orm";
 import { ErrorResponse } from "../utils/responses.js";
+import { appEvents } from "../events.js";
 
 export type MatchEntity = typeof matches.$inferSelect;
 type GetMatchesResponse = { data: MatchEntity[] } | ErrorResponse;
@@ -73,9 +74,7 @@ matcheRouter.post(
         })
         .returning();
 
-      if (res.app.locals.broadcastMatchCreated) {
-        res.app.locals.broadcastMatchCreated(event);
-      }
+      appEvents.emit("match_created", event);
 
       return res.status(201).json({ data: event });
     } catch (error) {

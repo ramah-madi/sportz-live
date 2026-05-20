@@ -3,7 +3,8 @@ import http from "http";
 import matcheRouter from "./routes/matches.js";
 import { attachWebSocketServer } from "./ws/server.js";
 
-const PORT = Number(process.env.PORT) ?? 8000;
+const parsedPort = Number(process.env.PORT);
+const PORT = Number.isInteger(parsedPort) && parsedPort > 0 ? parsedPort : 8000;
 const HOST = process.env.HOST ?? "0.0.0.0";
 
 const app = express();
@@ -24,8 +25,7 @@ apiRouter.use("/matches", matcheRouter);
 // Finally, mount the apiRouter on the app with the desired global prefix
 app.use("/api/v1", apiRouter);
 
-const { broadcastMatchCreated } = attachWebSocketServer(server);
-app.locals.broadcastMatchCreated = broadcastMatchCreated;
+attachWebSocketServer(server);
 
 server.listen(PORT, HOST, (): void => {
   const baseUrl =
