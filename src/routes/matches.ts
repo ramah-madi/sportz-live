@@ -8,9 +8,9 @@ import { matches } from "../db/schema.js";
 import { desc } from "drizzle-orm";
 import { ErrorResponse } from "../utils/responses.js";
 
-type Match = typeof matches.$inferSelect;
-type GetMatchesResponse = { data: Match[] } | ErrorResponse;
-type CreateMatchResponse = { data: Match } | ErrorResponse;
+export type MatchEntity = typeof matches.$inferSelect;
+type GetMatchesResponse = { data: MatchEntity[] } | ErrorResponse;
+type CreateMatchResponse = { data: MatchEntity } | ErrorResponse;
 
 const matcheRouter = Router();
 const MAX_LIMIT = 100;
@@ -72,6 +72,10 @@ matcheRouter.post(
           awayScore: awayScore ?? 0,
         })
         .returning();
+
+      if (res.app.locals.broadcastMatchCreated) {
+        res.app.locals.broadcastMatchCreated(event);
+      }
 
       return res.status(201).json({ data: event });
     } catch (error) {
