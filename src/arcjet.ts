@@ -1,7 +1,14 @@
 import arcjet, { detectBot, shield, slidingWindow } from "@arcjet/node";
 import { Request, Response, NextFunction } from "express";
 
-const arcjetKey = process.env.ARCJET_KEY;
+ const arcjetKey = process.env.ARCJET_KEY;
+if (!arcjetKey && process.env.NODE_ENV === "production") {
+  throw new Error("ARCJET_KEY is required in production");
+}
+if (!arcjetKey) {
+  console.warn("[security] ARCJET_KEY not set; Arcjet protection is disabled");
+}
+
 // 'DRY_RUN' is a mode that used to see what would be blocked without actually blocking it
 const arcjetMode = process.env.ARCJET_MODE === 'DRY_RUN' ? 'DRY_RUN' : 'LIVE';
 
