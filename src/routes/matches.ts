@@ -74,7 +74,11 @@ matcheRouter.post(
         })
         .returning();
 
-      appEvents.emit("match_created", event);
+      try {
+        appEvents.emit("match_created", event);
+      } catch (emitError) {
+        console.error("Failed to emit match_created:", emitError);
+      }
 
       return res.status(201).json({ data: event });
     } catch (error) {
