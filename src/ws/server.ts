@@ -2,6 +2,8 @@ import { WebSocket, WebSocketServer } from "ws";
 import { Server as HttpServer } from "http";
 import { MatchEntity } from "../routes/matches.js";
 import { appEvents } from "../events.js";
+import { wspArcjet } from "../arcjet.js";
+import { Request } from "express";
 
 interface AliveWebSocket extends WebSocket {
   isAlive: boolean;
@@ -32,7 +34,24 @@ export function attachWebSocketServer(server: HttpServer) {
     maxPayload: 1024 * 1024, // 1 mb, Its a securety measure against memory abuse or flooding
   });
 
-  wss.on("connection", (socket: AliveWebSocket) => {
+  wss.on("connection", async(socket: AliveWebSocket, req: Request) => {
+
+    if (wspArcjet) {
+        try {
+            const decision = await wspArcjet.protect(req);
+            if (decision.isDenied()) {
+                const code = decision.reason.isRateLimit() ? 1013 : 1008;
+                const reason = decision.reason.isRateLimit() ? "Too many requests" : "Access denied";
+
+                socket.close(code, reason);
+                return;
+            }
+        } catch (error) {
+            console.error("WS connection error:", error);
+            socket.close(1011, "Server security error");
+            return;
+        }
+    }
     socket.isAlive = true;
     socket.on("pong", () => {
       socket.isAlive = true;

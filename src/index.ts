@@ -2,6 +2,7 @@ import express, { Request, Response } from "express";
 import http from "http";
 import matcheRouter from "./routes/matches.js";
 import { attachWebSocketServer } from "./ws/server.js";
+import { securityMiddleware } from "./arcjet.js";
 
 const parsedPort = Number(process.env.PORT);
 const PORT = Number.isInteger(parsedPort) && parsedPort > 0 ? parsedPort : 8000;
@@ -17,6 +18,8 @@ app.get("/", (req: Request, res: Response): void => {
 });
 
 const apiRouter = express.Router();
+
+app.use(securityMiddleware());
 
 // Mount all your individual route files on the apiRouter
 apiRouter.use("/matches", matcheRouter);
