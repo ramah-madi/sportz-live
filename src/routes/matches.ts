@@ -7,10 +7,11 @@ import { db } from "../db/db.js";
 import { matches } from "../db/schema.js";
 import { desc } from "drizzle-orm";
 import { ErrorResponse } from "../utils/responses.js";
+import { appEvents } from "../events.js";
 
-type Match = typeof matches.$inferSelect;
-type GetMatchesResponse = { data: Match[] } | ErrorResponse;
-type CreateMatchResponse = { data: Match } | ErrorResponse;
+export type MatchEntity = typeof matches.$inferSelect;
+type GetMatchesResponse = { data: MatchEntity[] } | ErrorResponse;
+type CreateMatchResponse = { data: MatchEntity } | ErrorResponse;
 
 const matcheRouter = Router();
 const MAX_LIMIT = 100;
@@ -72,6 +73,12 @@ matcheRouter.post(
           awayScore: awayScore ?? 0,
         })
         .returning();
+
+      try {
+        appEvents.emit("match_created", event);
+      } catch (emitError) {
+        console.error("Failed to emit match_created:", emitError);
+      }
 
       return res.status(201).json({ data: event });
     } catch (error) {
