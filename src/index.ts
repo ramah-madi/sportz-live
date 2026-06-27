@@ -3,6 +3,7 @@ import http from "http";
 import matcheRouter from "./routes/matches.js";
 import { attachWebSocketServer } from "./ws/server.js";
 import { securityMiddleware } from "./arcjet.js";
+import { commentaryRouter } from "./routes/commentary.js";
 
 const parsedPort = Number(process.env.PORT);
 const PORT = Number.isInteger(parsedPort) && parsedPort > 0 ? parsedPort : 8000;
@@ -23,7 +24,7 @@ app.use(securityMiddleware());
 
 // Mount all your individual route files on the apiRouter
 apiRouter.use("/matches", matcheRouter);
-// apiRouter.use("/users", usersRouter);
+apiRouter.use("/matches/:id/commentary", commentaryRouter);
 
 // Finally, mount the apiRouter on the app with the desired global prefix
 app.use("/api/v1", apiRouter);

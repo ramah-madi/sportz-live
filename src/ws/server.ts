@@ -1,12 +1,46 @@
 import { WebSocket, WebSocketServer } from "ws";
 import { Server as HttpServer, IncomingMessage } from "http";
 import { MatchEntity } from "../routes/matches.js";
+import { CommentaryEntity } from "../routes/commentary.js";
 import { appEvents } from "../events.js";
 import { wspArcjet } from "../arcjet.js";
 import { Socket } from "net";
 
 interface AliveWebSocket extends WebSocket {
   isAlive: boolean;
+  subscriptions: Set<string>;
+}
+
+const matchSubscriptions = new Map();
+
+function subscribe(matchId: string, socket: AliveWebSocket) {
+  const key = matchId.toString();
+  if (!matchSubscriptions.has(key)) {
+    matchSubscriptions.set(key, new Set());
+  }
+
+  matchSubscriptions.get(key).add(socket);
+}
+
+function unsubscribe(matchId: string, socket: AliveWebSocket) {
+  const key = matchId.toString();
+  const subscribers = matchSubscriptions.get(key);
+
+  if (!subscribers) {
+    return;
+  }
+
+  subscribers.delete(socket);
+
+  if (subscribers.size === 0) {
+    matchSubscriptions.delete(key);
+  }
+}
+
+function cleanupSubscriptions(socket: AliveWebSocket) {
+  for (const matchId of socket.subscriptions) {
+    unsubscribe(matchId, socket);
+  }
 }
 
 function sendJson(socket: WebSocket, payload: object) {
@@ -17,7 +51,7 @@ function sendJson(socket: WebSocket, payload: object) {
   socket.send(JSON.stringify(payload));
 }
 
-function broadcast(wss: WebSocketServer, payload: object) {
+function broadcastToAll(wss: WebSocketServer, payload: object) {
   for (const client of wss.clients) {
     if (client.readyState !== WebSocket.OPEN) {
       continue;
@@ -27,6 +61,47 @@ function broadcast(wss: WebSocketServer, payload: object) {
   }
 }
 
+function handleMessage(socket: AliveWebSocket, data: object) {
+  let message;
+  try {
+    message = JSON.parse(data.toString());
+  } catch (error) {
+    sendJson(socket, { type: "error", message: "Invalid JSON" });
+    return;
+  }
+
+  if (message?.type === "subscribe" && Number.isInteger(message.matchId)) {
+    subscribe(message.matchId.toString(), socket);
+    socket.subscriptions.add(message.matchId.toString());
+    sendJson(socket, { type: "subscribed", matchId: message.matchId });
+    return;
+  }
+
+  if (message?.type === "unsubscribe" && Number.isInteger(message.matchId)) {
+    unsubscribe(message.matchId.toString(), socket);
+    socket.subscriptions.delete(message.matchId.toString());
+    sendJson(socket, { type: "unsubscribed", matchId: message.matchId });
+    return;
+  }
+}
+
+function broadcastToMatch(matchId: string, payload: object) {
+  const subscribers = matchSubscriptions.get(matchId);
+
+  if (!subscribers || subscribers.size === 0) {
+    return;
+  }
+
+  const message = JSON.stringify(payload);
+
+  for (const subscriber of subscribers) {
+    if (subscriber.readyState !== WebSocket.OPEN) {
+      continue;
+    }
+
+    subscriber.send(message);
+  }
+}
 export function attachWebSocketServer(server: HttpServer) {
   const wss = new WebSocketServer({
     noServer: true,
@@ -71,9 +146,22 @@ export function attachWebSocketServer(server: HttpServer) {
       socket.isAlive = true;
     });
 
+    socket.subscriptions = new Set();
+
     sendJson(socket, { type: "welcome" });
 
+    socket.on("message", (data) => handleMessage(socket, data));
+
+    socket.on("close", () => {
+      cleanupSubscriptions(socket);
+    });
+
     socket.on("error", console.error);
+
+    socket.on("error", () => {
+      socket.terminate();
+    });
+
   });
 
   const interval = setInterval(() => {
@@ -94,11 +182,19 @@ export function attachWebSocketServer(server: HttpServer) {
   });
 
   function broadcastMatchCreated(match: MatchEntity) {
-    broadcast(wss, {
+    broadcastToAll(wss, {
       type: "match_created",
       data: match,
     });
   }
 
+  function broadcastCommentary(comment: CommentaryEntity) {
+    broadcastToMatch(comment.matchId.toString(), {
+      type: "commentary_created",
+      data: comment,
+    });
+  }
+
   appEvents.on("match_created", broadcastMatchCreated);
+  appEvents.on("commentary_created", broadcastCommentary);
 }
